@@ -3,38 +3,38 @@ package ru.mail.polis;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 public class Value implements Comparable<Value>{
     private final long timestamp;
-    private final Optional<ByteBuffer> data;
+    private final ByteBuffer data;
 
     Value(final long timestamp, final ByteBuffer data) {
+        assert timestamp > 0L;
         this.timestamp = timestamp;
-        this.data = Optional.of(data);
+        this.data = data;
     }
 
     Value(final long timestamp) {
+        assert timestamp > 0L;
         this.timestamp = timestamp;
-        this.data = Optional.empty();
+        this.data = null;
     }
 
     boolean isTombstone() {
-        return data.isEmpty();
+        return data == null;
     }
 
-    @NotNull
     ByteBuffer getData() {
-        return data.orElse(ByteBuffer.allocate(0));
+        assert !isTombstone();
+        return data.asReadOnlyBuffer();
     }
 
-    @NotNull
     long getTimestamp() {
         return timestamp;
     }
 
     @Override
     public int compareTo(@NotNull final Value o) {
-        return Long.compare(timestamp, o.timestamp);
+        return -Long.compare(timestamp, o.timestamp);
     }
 }

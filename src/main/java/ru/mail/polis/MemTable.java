@@ -16,6 +16,9 @@ public class MemTable implements Table {
 
     private long curSizeInBytes;
 
+    public MemTable() {
+        this.curSizeInBytes = 0;
+    }
 
     @NotNull
     @Override
@@ -41,12 +44,7 @@ public class MemTable implements Table {
         } else {
             curSizeInBytes += key.remaining() + INT_BYTES;
         }
-
         map.put(key, new Value(System.currentTimeMillis()));
-    }
-
-    public MemTable() {
-        this.curSizeInBytes = 0;
     }
 
     public long getSizeInByte() {
