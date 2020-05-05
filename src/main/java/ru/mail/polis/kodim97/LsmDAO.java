@@ -13,11 +13,18 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 
-public class LSMDAO implements DAO {
+public class LsmDAO implements DAO {
+
+    private static final Logger logger = Logger.getLogger(LsmDAO.class.getName());
 
     private static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
@@ -28,19 +35,24 @@ public class LSMDAO implements DAO {
     private final File storage;
     private final int flushThreshold;
 
-    private MemTable memtable;
+    private final MemTable memtable;
     private final NavigableMap<Integer, Table> ssTables;
 
-    private int generation = 0;
+    private int generation;
 
-    public LSMDAO(
+    /**
+     * LSM DAO implementation.
+     * @param storage - the directory where SSTables stored.
+     * @param flushThreshold - amount of bytes that need to flush current memory table.
+     */
+    public LsmDAO(
             @NotNull final File storage,
             final int flushThreshold) throws IOException {
         this.storage = storage;
         this.flushThreshold = flushThreshold;
         this.memtable = new MemTable();
         this.ssTables = new TreeMap<>();
-        try (final Stream<Path> files = Files.list(storage.toPath())) {
+        try (Stream<Path> files = Files.list(storage.toPath())) {
             files.filter(file -> !file.toFile().isDirectory() && file.toString().endsWith(FILE_POSTFIX))
                     .forEach(file -> {
                         final String fileName = file.getFileName().toString();
@@ -49,7 +61,7 @@ public class LSMDAO implements DAO {
                             generation = Math.max(gen, generation);
                             ssTables.put(gen, new SSTable(file.toFile()));
                         } catch (IOException e) {
-                            //log
+                            logger.info("Something went wrong in LsmDao ctor");
                         }
                     });
             generation++;
@@ -58,26 +70,27 @@ public class LSMDAO implements DAO {
 
     @NotNull
     @Override
-    public Iterator<Record> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         final List<Iterator<Cell>> iters = new ArrayList<>(ssTables.size() + 1);
         iters.add(memtable.iterator(from));
         ssTables.descendingMap().values().forEach(ssTable -> {
             try {
                 iters.add(ssTable.iterator(from));
             } catch (IOException e) {
-                //log
+                logger.info("Something went wrong in iterator func");
             }
         });
 
         final Iterator<Cell> mergedElements = Iterators.mergeSorted(iters, Cell.COMPARATOR);
         final Iterator<Cell> freshElements = Iters.collapseEquals(mergedElements, Cell::getKey);
-        final Iterator<Cell> aliveElements = Iterators.filter(freshElements, element -> !element.getValue().isTombstone());
+        final Iterator<Cell> aliveElements = Iterators
+                .filter(freshElements, element -> !element.getValue().isTombstone());
 
         return Iterators.transform(aliveElements, element -> Record.of(element.getKey(), element.getValue().getData()));
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
         memtable.upsert(key, value);
         if (memtable.getSizeInByte() > flushThreshold) {
             flush();
@@ -85,7 +98,7 @@ public class LSMDAO implements DAO {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) throws IOException {
+    public void remove(@NotNull final ByteBuffer key) throws IOException {
         memtable.remove(key);
         if (memtable.getSizeInByte() > flushThreshold) {
             flush();

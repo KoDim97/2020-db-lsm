@@ -2,7 +2,8 @@ package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
@@ -10,8 +11,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.logging.Logger;
 
 public class SSTable implements Table {
+
+    private static final Logger logger = Logger.getLogger(LsmDAO.class.getName());
 
     private static final int INT_BYTES = 4;
     private static final int LONG_BYTES = 8;
@@ -21,12 +25,11 @@ public class SSTable implements Table {
     private final int numOfElements;
     private final int shiftToOffsetsArray;
 
-
     SSTable(@NotNull final File file) throws IOException {
         fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
         final int fileSize = (int)fileChannel.size();
 
-        ByteBuffer offsetBuf = ByteBuffer.allocate(INT_BYTES);
+        final ByteBuffer offsetBuf = ByteBuffer.allocate(INT_BYTES);
         fileChannel.read(offsetBuf, fileSize - INT_BYTES);
         numOfElements = offsetBuf.flip().getInt();
 
@@ -35,17 +38,17 @@ public class SSTable implements Table {
 
     @NotNull
     @Override
-    public Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Cell> iterator(@NotNull final ByteBuffer from) throws IOException {
         return new SSTableIterator(from);
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws IOException {
-        throw new UnsupportedEncodingException("SSTable doesn't provide upsert operations!");
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
+        throw new UnsupportedOperationException("SSTable doesn't provide upsert operations!");
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) {
+    public void remove(@NotNull final ByteBuffer key) {
         throw new UnsupportedOperationException("SSTable doesn't provide remove operations!");
     }
 
@@ -64,14 +67,14 @@ public class SSTable implements Table {
         try {
             fileChannel.close();
         } catch (IOException e) {
-            //log
+            logger.warning("The error happened when the file channel was closed");
         }
     }
 
     static void serialize(
             final File file,
             final Iterator<Cell> elementsIterator,
-            int size) throws IOException {
+            final int size) throws IOException {
 
         try (FileChannel fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE)) {
 
@@ -81,7 +84,7 @@ public class SSTable implements Table {
                 final Cell cell = elementsIterator.next();
                 final ByteBuffer key = cell.getKey();
                 final Value value = cell.getValue();
-                final Integer keySize = key.remaining();
+                final int keySize = key.remaining();
                 offsets.add(offset);
                 offset += keySize + INT_BYTES * 2 + LONG_BYTES;
 
@@ -153,10 +156,10 @@ public class SSTable implements Table {
         final ByteBuffer key = getKey(position);
 
         elementOffset += Integer.BYTES + key.remaining();
-        ByteBuffer timestampBuf = ByteBuffer.allocate(LONG_BYTES);
+        final ByteBuffer timestampBuf = ByteBuffer.allocate(LONG_BYTES);
         fileChannel.read(timestampBuf, elementOffset);
 
-        ByteBuffer valueSizeBuf = ByteBuffer.allocate(Integer.BYTES);
+        final ByteBuffer valueSizeBuf = ByteBuffer.allocate(Integer.BYTES);
         fileChannel.read(valueSizeBuf, elementOffset + Long.BYTES);
         final int valueSize = valueSizeBuf.flip().getInt();
 
@@ -164,7 +167,7 @@ public class SSTable implements Table {
         if (valueSize == -1) {
             value = new Value(timestampBuf.flip().getLong());
         } else {
-            ByteBuffer valueBuf = ByteBuffer.allocate(valueSize);
+            final ByteBuffer valueBuf = ByteBuffer.allocate(valueSize);
             fileChannel.read(valueBuf, elementOffset + LONG_BYTES + INT_BYTES);
             valueBuf.flip();
             value = new Value(timestampBuf.flip().getLong(), valueBuf);
@@ -181,7 +184,7 @@ public class SSTable implements Table {
             try {
                 position = getPosition(from.rewind());
             } catch (IOException e) {
-                //log
+                logger.info("Iterator cannot get 'from' position in SStable");
             }
         }
 
@@ -195,7 +198,8 @@ public class SSTable implements Table {
             try {
                 return get(position++);
             } catch (IOException e) {
-                throw new NoSuchElementException();
+                logger.info("Iterator cannot get a cell in SStable");
+                throw new RuntimeException(e);
             }
         }
     }

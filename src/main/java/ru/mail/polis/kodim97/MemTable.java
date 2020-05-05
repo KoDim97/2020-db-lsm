@@ -22,7 +22,7 @@ public class MemTable implements Table {
 
     @NotNull
     @Override
-    public Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Cell> iterator(@NotNull final ByteBuffer from) throws IOException {
         return map.tailMap(from)
                 .entrySet()
                 .stream()
@@ -31,8 +31,8 @@ public class MemTable implements Table {
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) {
-        Value val = map.get(key);
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
+        final Value val = map.get(key);
         if (val == null) {
             curSizeInBytes += key.remaining() + value.remaining() + LONG_BYTES;
         } else {
@@ -42,12 +42,12 @@ public class MemTable implements Table {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) {
-        Value value = map.get(key);
-        if (value != null && !value.isTombstone()) {
-            curSizeInBytes -= value.getData().remaining();
-        } else {
+    public void remove(@NotNull final ByteBuffer key) {
+        final Value value = map.get(key);
+        if (value == null) {
             curSizeInBytes += key.remaining() + LONG_BYTES;
+        } else if(!value.isTombstone()) {
+            curSizeInBytes -= value.getData().remaining();
         }
         map.put(key.duplicate(), new Value(System.currentTimeMillis()));
     }
@@ -65,6 +65,6 @@ public class MemTable implements Table {
     @Override
     public void close() {
         map.clear();
-        curSizeInBytes  = 0;
+        curSizeInBytes = 0;
     }
 }
