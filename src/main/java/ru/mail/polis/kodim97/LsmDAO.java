@@ -21,7 +21,6 @@ import java.util.TreeMap;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-
 public class LsmDAO implements DAO {
 
     private static final Logger logger = Logger.getLogger(LsmDAO.class.getName());

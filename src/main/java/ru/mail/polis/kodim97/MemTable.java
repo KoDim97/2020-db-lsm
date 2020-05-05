@@ -46,7 +46,7 @@ public class MemTable implements Table {
         final Value value = map.get(key);
         if (value == null) {
             curSizeInBytes += key.remaining() + LONG_BYTES;
-        } else if(!value.isTombstone()) {
+        } else if (!value.isTombstone()) {
             curSizeInBytes -= value.getData().remaining();
         }
         map.put(key.duplicate(), new Value(System.currentTimeMillis()));
