@@ -61,6 +61,8 @@ public class LsmDAO implements DAO {
                             ssTables.put(gen, new SSTable(file.toFile()));
                         } catch (IOException e) {
                             logger.info("Something went wrong in LsmDao ctor");
+                        } catch (NumberFormatException e) {
+                            logger.info("Unexpected name of SSTable file");
                         }
                     });
             generation++;
@@ -114,6 +116,7 @@ public class LsmDAO implements DAO {
 
     private void flush() throws IOException {
         final File file = new File(storage, generation + TEMP_FILE_POSTFIX);
+        file.createNewFile();
         SSTable.serialize(file, memtable.iterator(EMPTY_BUFFER), memtable.size());
         final File dst = new File(storage, generation + FILE_POSTFIX);
         Files.move(file.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
