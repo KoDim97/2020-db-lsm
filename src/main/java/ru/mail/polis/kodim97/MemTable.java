@@ -1,4 +1,4 @@
-package ru.mail.polis;
+package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -9,12 +9,12 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class MemTable implements Table {
-
-    private final static int INT_BYTES = 8;
-
+    
+    private static final int LONG_BYTES = 8;
+    
     private final SortedMap<ByteBuffer, Value> map = new TreeMap<>();
 
-    private long curSizeInBytes;
+    private int curSizeInBytes;
 
     public MemTable() {
         this.curSizeInBytes = 0;
@@ -31,9 +31,14 @@ public class MemTable implements Table {
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws IOException {
-        map.put(key, new Value(System.currentTimeMillis(), value));
-        curSizeInBytes = key.remaining() + value.remaining() + INT_BYTES;
+    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) {
+        Value val = map.get(key);
+        if (val == null) {
+            curSizeInBytes += key.remaining() + value.remaining() + LONG_BYTES;
+        } else {
+            curSizeInBytes += value.remaining() - val.getData().remaining();
+        }
+        map.put(key.duplicate(), new Value(System.currentTimeMillis(), value.duplicate()));
     }
 
     @Override
@@ -42,11 +47,12 @@ public class MemTable implements Table {
         if (value != null && !value.isTombstone()) {
             curSizeInBytes -= value.getData().remaining();
         } else {
-            curSizeInBytes += key.remaining() + INT_BYTES;
+            curSizeInBytes += key.remaining() + LONG_BYTES;
         }
-        map.put(key, new Value(System.currentTimeMillis()));
+        map.put(key.duplicate(), new Value(System.currentTimeMillis()));
     }
 
+    @Override
     public long getSizeInByte() {
         return curSizeInBytes;
     }
@@ -54,5 +60,11 @@ public class MemTable implements Table {
     @Override
     public int size() {
         return map.size();
+    }
+
+    @Override
+    public void close() {
+        map.clear();
+        curSizeInBytes  = 0;
     }
 }

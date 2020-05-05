@@ -1,4 +1,4 @@
-package ru.mail.polis;
+package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
 

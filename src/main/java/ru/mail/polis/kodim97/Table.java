@@ -1,4 +1,4 @@
-package ru.mail.polis;
+package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -18,4 +18,6 @@ public interface Table {
     long getSizeInByte();
 
     int size();
+
+    void close();
 }

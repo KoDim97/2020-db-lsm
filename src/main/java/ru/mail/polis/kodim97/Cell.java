@@ -1,4 +1,4 @@
-package ru.mail.polis;
+package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -12,13 +12,13 @@ public class Cell {
     private final ByteBuffer key;
     private final Value value;
 
-    public Cell(@NotNull ByteBuffer key, Value value) {
+    public Cell(@NotNull final ByteBuffer key, @NotNull final Value value) {
         this.key = key;
         this.value = value;
     }
 
     public ByteBuffer getKey() {
-        return key;
+        return key.asReadOnlyBuffer();
     }
 
     public Value getValue() {

@@ -1,8 +1,11 @@
-package ru.mail.polis;
+package ru.mail.polis.kodim97;
 
 import com.google.common.collect.Iterators;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.DAO;
+import ru.mail.polis.Iters;
+import ru.mail.polis.Record;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,35 +19,37 @@ import java.util.stream.Stream;
 
 public class LSMDAO implements DAO {
 
+    private static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+
     private static final String FILE_POSTFIX = ".dat";
     private static final String TEMP_FILE_POSTFIX = ".tmp";
 
     @NonNull
     private final File storage;
-    private final long flushThreshold;
+    private final int flushThreshold;
 
-    private Table memtable;
+    private MemTable memtable;
     private final NavigableMap<Integer, Table> ssTables;
 
     private int generation = 0;
 
     public LSMDAO(
             @NotNull final File storage,
-            final long flushThreshold) throws IOException {
+            final int flushThreshold) throws IOException {
         this.storage = storage;
         this.flushThreshold = flushThreshold;
         this.memtable = new MemTable();
         this.ssTables = new TreeMap<>();
         try (final Stream<Path> files = Files.list(storage.toPath())) {
-            files.filter(file -> file.toString().endsWith(FILE_POSTFIX))
+            files.filter(file -> !file.toFile().isDirectory() && file.toString().endsWith(FILE_POSTFIX))
                     .forEach(file -> {
+                        final String fileName = file.getFileName().toString();
                         try {
-                            final String fileName = file.getFileName().toString();
                             final int gen = Integer.parseInt(fileName.substring(0, fileName.indexOf(FILE_POSTFIX)));
                             generation = Math.max(gen, generation);
                             ssTables.put(gen, new SSTable(file.toFile()));
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            //log
                         }
                     });
             generation++;
@@ -60,7 +65,7 @@ public class LSMDAO implements DAO {
             try {
                 iters.add(ssTable.iterator(from));
             } catch (IOException e) {
-                e.printStackTrace();
+                //log
             }
         });
 
@@ -74,7 +79,7 @@ public class LSMDAO implements DAO {
     @Override
     public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws IOException {
         memtable.upsert(key, value);
-        if (memtable.getSizeInByte() >= flushThreshold) {
+        if (memtable.getSizeInByte() > flushThreshold) {
             flush();
         }
     }
@@ -82,7 +87,7 @@ public class LSMDAO implements DAO {
     @Override
     public void remove(@NotNull ByteBuffer key) throws IOException {
         memtable.remove(key);
-        if (memtable.getSizeInByte() >= flushThreshold) {
+        if (memtable.getSizeInByte() > flushThreshold) {
             flush();
         }
     }
@@ -92,16 +97,16 @@ public class LSMDAO implements DAO {
         if (memtable.size() > 0) {
             flush();
         }
+        ssTables.values().forEach(Table::close);
     }
 
     private void flush() throws IOException {
-        String tmpName = generation + TEMP_FILE_POSTFIX;
         final File file = new File(storage, generation + TEMP_FILE_POSTFIX);
-        SSTable.serialize(file, memtable.iterator(ByteBuffer.allocate(0)), memtable.size());
+        SSTable.serialize(file, memtable.iterator(EMPTY_BUFFER), memtable.size());
         final File dst = new File(storage, generation + FILE_POSTFIX);
         Files.move(file.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
         ++generation;
         ssTables.put(generation, new SSTable(dst));
-        memtable = new MemTable();
+        memtable.close();
     }
 }
