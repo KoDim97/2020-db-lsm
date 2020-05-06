@@ -28,7 +28,7 @@ public class LsmDAO implements DAO {
 
     private static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    private static final String FILE_POSTFIX = ".datt";
+    private static final String FILE_POSTFIX = ".dat";
     private static final String TEMP_FILE_POSTFIX = ".tmp";
 
     @NonNull
@@ -112,7 +112,7 @@ public class LsmDAO implements DAO {
         if (memtable.size() > 0) {
             flush();
         }
-        for (Table table : ssTables.values()) {
+        for (final Table table : ssTables.values()) {
             table.close();
         }
     }
