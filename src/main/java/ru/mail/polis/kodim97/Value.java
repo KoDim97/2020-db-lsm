@@ -8,7 +8,7 @@ public class Value implements Comparable<Value> {
     private final long timestamp;
     private final ByteBuffer data;
 
-    Value(final long timestamp, final ByteBuffer data) {
+    Value(final long timestamp, @NotNull final ByteBuffer data) {
         assert timestamp > 0L;
         this.timestamp = timestamp;
         this.data = data;

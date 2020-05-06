@@ -1,6 +1,8 @@
 package ru.mail.polis.kodim97;
 
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,11 +12,10 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class SSTable implements Table {
 
-    private static final Logger logger = Logger.getLogger(LsmDAO.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
     private static final int INT_BYTES = 4;
     private static final int LONG_BYTES = 8;
@@ -25,14 +26,14 @@ public class SSTable implements Table {
     private final int shiftToOffsetsArray;
 
     SSTable(@NotNull final File file) throws IOException {
-        fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
+        this.fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
         final int fileSize = (int)fileChannel.size();
 
         final ByteBuffer offsetBuf = ByteBuffer.allocate(INT_BYTES);
         fileChannel.read(offsetBuf, fileSize - INT_BYTES);
-        numOfElements = offsetBuf.flip().getInt();
+        this.numOfElements = offsetBuf.flip().getInt();
 
-        shiftToOffsetsArray = fileSize - INT_BYTES * (1 + numOfElements);
+        this.shiftToOffsetsArray = fileSize - INT_BYTES * (1 + numOfElements);
     }
 
     @NotNull
@@ -62,11 +63,12 @@ public class SSTable implements Table {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         try {
             fileChannel.close();
         } catch (IOException e) {
-            logger.warning("The error happened when the file channel was closed");
+            logger.info("The error happened when the file channel was closed", e);
+            throw e;
         }
     }
 
@@ -179,11 +181,12 @@ public class SSTable implements Table {
 
         private int position;
 
-        public SSTableIterator(final ByteBuffer from) {
+        public SSTableIterator(final ByteBuffer from) throws IOException {
             try {
                 position = getPosition(from.rewind());
             } catch (IOException e) {
-                logger.info("Iterator cannot get 'from' position in SStable");
+                logger.info("Iterator cannot get 'from' position in SStable", e);
+                throw e;
             }
         }
 
@@ -197,7 +200,7 @@ public class SSTable implements Table {
             try {
                 return get(position++);
             } catch (IOException e) {
-                logger.info("Iterator cannot get a cell in SStable");
+                logger.info("Iterator cannot get a cell in SStable", e);
                 throw new RuntimeException(e);
             }
         }

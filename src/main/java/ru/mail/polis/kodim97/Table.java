@@ -19,5 +19,5 @@ public interface Table {
 
     int size();
 
-    void close();
+    void close() throws IOException;
 }

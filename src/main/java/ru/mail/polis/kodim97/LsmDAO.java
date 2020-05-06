@@ -3,6 +3,8 @@ package ru.mail.polis.kodim97;
 import com.google.common.collect.Iterators;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.DAO;
 import ru.mail.polis.Iters;
 import ru.mail.polis.Record;
@@ -18,16 +20,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 public class LsmDAO implements DAO {
 
-    private static final Logger logger = Logger.getLogger(LsmDAO.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
     private static ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    private static final String FILE_POSTFIX = ".dat";
+    private static final String FILE_POSTFIX = ".datt";
     private static final String TEMP_FILE_POSTFIX = ".tmp";
 
     @NonNull
@@ -60,9 +61,9 @@ public class LsmDAO implements DAO {
                             generation = Math.max(gen, generation);
                             ssTables.put(gen, new SSTable(file.toFile()));
                         } catch (IOException e) {
-                            logger.info("Something went wrong in LsmDao ctor");
+                            logger.info("Something went wrong in SSTable ctor", e);
                         } catch (NumberFormatException e) {
-                            logger.info("Unexpected name of SSTable file");
+                            logger.info("Unexpected name of SSTable file", e);
                         }
                     });
             generation++;
@@ -78,7 +79,7 @@ public class LsmDAO implements DAO {
             try {
                 iters.add(ssTable.iterator(from));
             } catch (IOException e) {
-                logger.info("Something went wrong in iterator func");
+                logger.info("Something went wrong in iterator func", e);
             }
         });
 
@@ -111,7 +112,9 @@ public class LsmDAO implements DAO {
         if (memtable.size() > 0) {
             flush();
         }
-        ssTables.values().forEach(Table::close);
+        for (Table table : ssTables.values()) {
+            table.close();
+        }
     }
 
     private void flush() throws IOException {
