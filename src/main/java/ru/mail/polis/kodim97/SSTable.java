@@ -68,7 +68,7 @@ public class SSTable implements Table {
             fileChannel.close();
         } catch (IOException e) {
             logger.info("The error happened when the file channel was closed", e);
-            throw e;
+            throw new RuntimeException(e);
         }
     }
 
@@ -186,7 +186,7 @@ public class SSTable implements Table {
                 position = getPosition(from.rewind());
             } catch (IOException e) {
                 logger.info("Iterator cannot get 'from' position in SStable", e);
-                throw e;
+                throw new RuntimeException(e);
             }
         }
 
