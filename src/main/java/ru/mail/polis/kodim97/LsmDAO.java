@@ -35,7 +35,7 @@ public class LsmDAO implements DAO {
     private final File storage;
     private final int flushThreshold;
 
-    private final MemTable memtable;
+    private MemTable memtable;
     private final NavigableMap<Integer, Table> ssTables;
 
     private int generation;
@@ -66,29 +66,48 @@ public class LsmDAO implements DAO {
                             logger.info("Unexpected name of SSTable file", e);
                         }
                     });
-            generation++;
+            ++generation;
         }
     }
 
     @NotNull
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
+        final Iterator<Cell> freshElements = freshCellIterator(from);
+        final Iterator<Cell> aliveElements = Iterators
+                .filter(freshElements, element -> !element.getValue().isTombstone());
+
+        return Iterators.transform(aliveElements, element -> Record.of(element.getKey(), element.getValue().getData()));
+    }
+
+    private Iterator<Cell> freshCellIterator(@NotNull ByteBuffer from) {
         final List<Iterator<Cell>> iters = new ArrayList<>(ssTables.size() + 1);
         iters.add(memtable.iterator(from));
         ssTables.descendingMap().values().forEach(ssTable -> {
             try {
                 iters.add(ssTable.iterator(from));
             } catch (IOException e) {
-                logger.info("Something went wrong in iterator func", e);
+                logger.info("Something went wrong when in freshCellIterator");
             }
         });
 
-        final Iterator<Cell> mergedElements = Iterators.mergeSorted(iters, Cell.COMPARATOR);
-        final Iterator<Cell> freshElements = Iters.collapseEquals(mergedElements, Cell::getKey);
-        final Iterator<Cell> aliveElements = Iterators
-                .filter(freshElements, element -> !element.getValue().isTombstone());
+        final Iterator<Cell> mergedElements = Iterators.mergeSorted(
+                iters,
+                Cell.COMPARATOR
+        );
 
-        return Iterators.transform(aliveElements, element -> Record.of(element.getKey(), element.getValue().getData()));
+        return Iters.collapseEquals(mergedElements, Cell::getKey);
+    }
+
+    private File serialize(Iterator<Cell> iterator) throws IOException {
+        final File file = new File(storage, generation + TEMP_FILE_POSTFIX);
+        file.createNewFile();
+        SSTable.serialize(file, iterator);
+        final String newFileName = generation + FILE_POSTFIX;
+        final File dst = new File(storage, newFileName);
+        Files.move(file.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
+
+        return dst;
     }
 
     @Override
@@ -117,12 +136,26 @@ public class LsmDAO implements DAO {
         }
     }
 
+    @Override
+    public void compact() throws IOException {
+        final Iterator<Cell> freshElements = freshCellIterator(EMPTY_BUFFER);
+        final File dst = serialize(freshElements);
+
+        try (final Stream<Path> files = Files.list(storage.toPath())) {
+            files.filter(f -> !f.getFileName().toFile().toString().equals(dst.getName()))
+                    .forEach(f -> {
+                        f.toFile().delete();
+                    });
+        }
+
+        ssTables.clear();
+        memtable = new MemTable();
+        ssTables.put(generation, new SSTable(dst));
+        ++generation;
+    }
+
     private void flush() throws IOException {
-        final File file = new File(storage, generation + TEMP_FILE_POSTFIX);
-        file.createNewFile();
-        SSTable.serialize(file, memtable.iterator(EMPTY_BUFFER), memtable.size());
-        final File dst = new File(storage, generation + FILE_POSTFIX);
-        Files.move(file.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        final File dst = serialize(memtable.iterator(EMPTY_BUFFER));
         ++generation;
         ssTables.put(generation, new SSTable(dst));
         memtable.close();
