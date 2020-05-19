@@ -35,7 +35,7 @@ public class LsmDAO implements DAO {
     private final File storage;
     private final int flushThreshold;
 
-    private MemTable memtable;
+    private final MemTable memtable;
     private final NavigableMap<Integer, Table> ssTables;
 
     private int generation;
