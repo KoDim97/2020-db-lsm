@@ -80,7 +80,7 @@ public class LsmDAO implements DAO {
         return Iterators.transform(aliveElements, element -> Record.of(element.getKey(), element.getValue().getData()));
     }
 
-    private Iterator<Cell> freshCellIterator(@NotNull ByteBuffer from) {
+    private Iterator<Cell> freshCellIterator(@NotNull final ByteBuffer from) {
         final List<Iterator<Cell>> iters = new ArrayList<>(ssTables.size() + 1);
         iters.add(memtable.iterator(from));
         ssTables.descendingMap().values().forEach(ssTable -> {
@@ -99,7 +99,7 @@ public class LsmDAO implements DAO {
         return Iters.collapseEquals(mergedElements, Cell::getKey);
     }
 
-    private File serialize(Iterator<Cell> iterator) throws IOException {
+    private File serialize(final Iterator<Cell> iterator) throws IOException {
         final File file = new File(storage, generation + TEMP_FILE_POSTFIX);
         file.createNewFile();
         SSTable.serialize(file, iterator);
@@ -141,17 +141,16 @@ public class LsmDAO implements DAO {
         final Iterator<Cell> freshElements = freshCellIterator(EMPTY_BUFFER);
         final File dst = serialize(freshElements);
 
-        try (final Stream<Path> files = Files.list(storage.toPath())) {
+        try (Stream<Path> files = Files.list(storage.toPath())) {
             files.filter(f -> !f.getFileName().toFile().toString().equals(dst.getName()))
                     .forEach(f -> {
-                        f.toFile().delete();
+                        try {
+                            Files.delete(f);
+                        } catch (IOException e) {
+                            logger.info("Unable to delete file: " + f.getFileName().toFile().toString(), e);
+                        }
                     });
         }
-
-        ssTables.clear();
-        memtable = new MemTable();
-        ssTables.put(generation, new SSTable(dst));
-        ++generation;
     }
 
     private void flush() throws IOException {
