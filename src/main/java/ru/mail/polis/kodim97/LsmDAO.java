@@ -35,7 +35,7 @@ public class LsmDAO implements DAO {
     private final File storage;
     private final int flushThreshold;
 
-    private final MemTable memtable;
+    private MemTable memtable;
     private final NavigableMap<Integer, Table> ssTables;
 
     private int generation;
@@ -151,6 +151,10 @@ public class LsmDAO implements DAO {
                         }
                     });
         }
+        ssTables.clear();
+        ssTables.put(generation, new SSTable(dst));
+        ++generation;
+        memtable = new MemTable();
     }
 
     private void flush() throws IOException {
